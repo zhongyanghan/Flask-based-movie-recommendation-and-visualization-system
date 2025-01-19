@@ -1,0 +1,150 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import plotly as py
+import  plotly.graph_objects as go
+import seaborn as sns
+import requests
+from bs4 import BeautifulSoup
+import time
+from statsmodels.stats.anova import anova_lm
+from statsmodels.formula.api import ols
+    #获取电影的详细信息，包括导演、编剧、主演、类型、制作地区、语言、上映时间、片长、评分、评价人数、观看人数、想看人数、短评条数
+data=[]
+df = pd.read_excel('链接.xlsx')
+#     movie = pd.read_csv('data/douban_movie_url.csv')
+#     print(movie)
+MovieDetail=[]
+header = {'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/78.0.3904.70 Safari/537.36',
+          'Cookie':'bid=IWe9Z6busEk; douban-fav-remind=1; gr_user_id=f7fae037-6b68-4d42-8a9e-19a1ef3263a7; _vwo_uuid_v2=DB1D5D334A6BE3FD5143EAF4C7FD52463|f63a15d9f0accbd1c8836fedba0591ff; viewed="10571608_10571602_26589104_1195595"; __yadk_uid=Ife4NimEiP6V0taky1FCMpfTWLdNfRan; ll="118136"; trc_cookie_storage=taboola%2520global%253Auser-id%3De88de203-688b-415e-9d09-0e40d41140ec-tuct41d9fc9; __utmv=30149280.17939; douban-profile-remind=1; __gads=ID=6d22200e8d8100ab:T=1580716605:S=ALNI_MY8d2gzAYOhbwuwAKgaSbx9kRa8kw; __utmc=30149280; __utmz=30149280.1582461492.18.13.utmcsr=baidu|utmccn=(organic)|utmcmd=organic; __utmc=223695111; __utmz=223695111.1582461492.11.6.utmcsr=baidu|utmccn=(organic)|utmcmd=organic; ct=y; _pk_ref.100001.4cf6=%5B%22%22%2C%22%22%2C1582518519%2C%22https%3A%2F%2Fwww.baidu.com%2Flink%3Furl%3Dw3K7KtSpdRTRt9Nso7KvfEqEScg3YYFJZms1zZ0A_jhdFN1ZhldskLw7VdKnHSb7%26wd%3D%26eqid%3De6fdfb68004b8856000000035e527231%22%5D; _pk_ses.100001.4cf6=*; __utma=30149280.1262479007.1562647114.1582513563.1582518519.22; __utmb=30149280.0.10.1582518519; __utma=223695111.770823807.1572251330.1582513563.1582518519.15; __utmb=223695111.0.10.1582518519; ap_v=0,6.0; dbcl2="179397940:9GTKde9XxvY"; ck=6E9C; push_doumail_num=0; push_noty_num=0; _pk_id.100001.4cf6=ba941b513938cd23.1572251329.15.1582519262.1582514328.'
+          }
+for url in df['电影详情链接']:
+    re = requests.get(url,headers=header)
+    time.sleep(1)
+    soup = BeautifulSoup(re.text,'lxml')
+    try:
+        title = soup.find('h1').span.text #标题
+        director = soup.find(class_='attrs').a.text#导演
+        Screenwriter = soup.findAll(class_='attrs')[1].text#编剧
+        main_performer = soup.findAll(class_='attrs')[2].text.split('/') #这里只选择前3主演
+        main_performer = main_performer[0]+main_performer[1]+main_performer[2]
+        Type = soup.findAll(class_='pl')[3].find_next_siblings("span")
+        Types=''
+        for type in Type:
+            if(type.text=='制片国家/地区:' or type.text=='官方网站:'):
+                break
+            else:
+                Types+=type.text+' '
+        Types = Types[:-1]#类型
+
+        region = soup.findAll(class_='pl')[4]
+        if(region.text=='官方网站:'):
+            region = soup.findAll(class_='pl')[5]
+        region = region.next.next#制作地区
+
+        Language = soup.findAll(class_='pl')[5]
+        if(Language.text=='制片国家/地区'):
+            Language = soup.findAll(class_='pl')[6]
+        Language = Language.next.next#语言
+
+        ShowtTime =  soup.findAll(class_='pl')[6]
+        if(ShowtTime.text=='语言:'):
+            ShowtTime = soup.findAll(class_='pl')[7]
+        ShowtTime = ShowtTime.find_next_sibling("span").text.split('(')[0]#上映日期
+
+        Film_length =  soup.findAll(class_='pl')[7]
+        if(Film_length.text=='上映日期:'):
+            Film_length = soup.findAll(class_='pl')[8]
+        Film_length = Film_length.find_next_sibling("span").text[:-2]#片长
+
+        score = soup.find('strong',class_='ll rating_num').text+' '#评分
+        rating_people = soup.find('a',class_='rating_people').text.strip()[:-3]#评价人数
+        watching_people = soup.find('div','subject-others-interests-ft').a.text[:-3]#看过人数
+        wtsee_people = soup.find('div','subject-others-interests-ft').a.find_next_siblings("a")[0].text[:-3] #想看人数
+        comments_people = soup.find('div',class_='mod-hd').h2.span.a.text.split(' ')[1]#短评人数
+        #到这里 前面数据已经测试完毕 接下来就是写入文件
+        AllInfo={'电影名':title,'导演':director,'编剧':Screenwriter,'演员':main_performer,'电影类型':Types,'拍摄国家':region,'语言':Language,'电影年份':ShowtTime[:4],'时长':Film_length,'评分':score,'评分人数':rating_people,'观看人数':watching_people,'Wtsee_people':wtsee_people,'评论人数':comments_people}
+        data.append(AllInfo)
+        print(AllInfo)
+    except:
+        print('error')
+        AllInfo={'电影名':'','导演':'','编剧':'','演员':'','电影类型':'','拍摄国家':'','语言':'','电影年份':'','时长':'','评分':'','评分人数':'','观看人数':'','Wtsee_people':'','评论人数':''}
+        data.append(AllInfo)
+        continue;
+df = pd.DataFrame(data)
+df.to_csv('movie_info.csv',index=False)#不把索引输入到文件中
+
+
+df.to_excel('movie_info.xlsx',index=False)
+
+
+
+
+from wordcloud import WordCloud
+import matplotlib.pyplot as plt
+from collections import Counter
+
+# 给定的信息
+text =''.join(df['影片中文名'].tolist())
+word_counts = Counter(text)
+
+# 绘制词频统计图
+wordcloud = WordCloud(width=800, height=400, background_color='white',font_path='simhei.ttf',max_words=400, max_font_size=120).generate_from_frequencies(word_counts)
+
+# 显示词云图
+plt.figure(figsize=(16, 8))
+plt.imshow(wordcloud, interpolation='bilinear')
+plt.axis('off')  # 不显示坐标轴
+plt.title('词云统计图', fontsize=16)
+plt.show()
+
+
+
+import pandas as pd
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+df_my = {
+    '电影类型': ['犯罪', '爱情', '爱情', '犯罪', '剧情', '动作'],
+    '拍摄国家': ['美国','墨西哥', '法国', '日本', '美国', '美国']
+}
+df_my=pd.DataFrame(df_my)
+df_my
+
+df_movies = df[['电影类型','拍摄国家']]
+df_movies['电影类型'] = df_movies['电影类型'].astype(str)
+df_movies['拍摄国家'] = df_movies['拍摄国家'].astype(str)
+df_movies['电影类型'] = df_movies['电影类型'].str.get_dummies(sep='')
+df_movies['拍摄国家'] = df_movies['拍摄国家'].str.get_dummies(sep=' / ')
+df_movies
+
+# 合并“电影类型”和“拍摄国家”列为一个单独的特征
+df_my['特征'] = df_my['电影类型'] + " " + df_my['拍摄国家']
+df_movies['特征'] = df_movies['电影类型'] + " " + df_movies['拍摄国家']
+
+# 创建CountVectorizer，以转换文本特征为向量
+vectorizer = CountVectorizer()
+vectorizer.fit(pd.concat([df_my['特征'], df_movies['特征']]))
+
+# 转换用户记录和电影数据
+user_records_vec = vectorizer.transform(df_my['特征'])
+movies_data_vec = vectorizer.transform(df_movies['特征'])
+
+# 计算余弦相似度
+similarity = cosine_similarity(user_records_vec, movies_data_vec)
+
+# 找到最相似的电影ID
+recommended_movie_ids = similarity.mean(axis=0).argsort()[::-1][:5]  # 取平均相似度最高的5部电影
+recommended_movie_ids_indices = [df_movies.index[i] for i in recommended_movie_ids]
+
+recommended_movie_ids_indices
+import matplotlib.pyplot as plt
+import seaborn as sns
+plt.figure(figsize=(16, 8))
+plt.rcParams['font.sans-serif'] = 'SimHei' 
+sns.heatmap(similarity, cmap='coolwarm', fmt=".2f")
+plt.title('协同过滤热力图')
+plt.xlabel('电影ID')
+plt.ylabel('我的历史记录ID')
+plt.show()
+
+
